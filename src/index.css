@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Dark mode background fix for the whole body */
+body {
+  background-color: #0f172a; /* matches slate-900 */
+  color: white;
+}
