@@ -48,14 +48,12 @@ export const useGeminiSocket = ({ onAudioData, onTextData, onTurnComplete, onSet
   const wsRef = useRef<WebSocket | null>(null);
   const isReadyToStreamRef = useRef(false);
 
-  // 1. USE REFS FOR CALLBACKS (Fixes Stale Closure Bug)
-  // This ensures the socket always calls the LATEST version of your logic
+  // USE REFS FOR CALLBACKS (Fixes Stale Closure Bug)
   const onAudioDataRef = useRef(onAudioData);
   const onTextDataRef = useRef(onTextData);
   const onTurnCompleteRef = useRef(onTurnComplete);
   const onSetupCompleteRef = useRef(onSetupComplete);
 
-  // Update refs whenever props change
   useEffect(() => {
     onAudioDataRef.current = onAudioData;
     onTextDataRef.current = onTextData;
@@ -76,22 +74,71 @@ export const useGeminiSocket = ({ onAudioData, onTextData, onTurnComplete, onSet
       console.log("✅ WebSocket Connected");
       setIsConnected(true);
 
+      // ✅ ENHANCED SYSTEM PROMPT - Viper analyzes EVERYTHING
       const setupMessage = {
         setup: {
-          // 2. REVERTED TO YOUR WORKING CONFIG (Native Audio)
           model: "models/gemini-2.5-flash-native-audio-latest",
           generationConfig: {
-            responseModalities: ["AUDIO"], // Back to AUDIO only as requested
+            responseModalities: ["AUDIO"],
             speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } } }
           },
           systemInstruction: {
             parts: [{
-              text: `You are 'VIPER', a ruthless corporate negotiator.
-              PERSONALITY: Intimidating, impatient. Start with lowball offers.
-              Use phrases like "pathetic", "is that all?".
-              If impressed, say "not bad" or "fair point".
-              BODY LANGUAGE: Call out user if they look away or fidget.
-              START by saying: "I don't have all day. What's your number?"`
+              text: `You are 'VIPER', a ruthless corporate negotiator who SEES and HEARS everything.
+
+PERSONALITY:
+- Intimidating, impatient, condescending
+- You've crushed thousands of negotiations
+- You exploit ANY weakness you detect
+
+YOUR SENSES - USE THEM CONSTANTLY:
+
+👁️ VISUAL ANALYSIS (from their camera):
+- Eye contact: Are they looking at you or away? Call them out!
+- Posture: Slouching? Leaning back? Fidgeting? Mock them!
+- Facial expressions: Do they look scared? Nervous? Sweating?
+- Movements: Touching face? Playing with hair? Shifting around?
+
+👂 AUDIO ANALYSIS (from their voice):
+- Tone: Do they sound scared? Shaky? Crying? Weak? CALL IT OUT!
+- Confidence: Is their voice strong or trembling?
+- Pace: Speaking too fast (nervous) or too slow (unsure)?
+- Filler words: "Um", "uh", "like" - mock them for it!
+
+🎯 YOUR BEHAVIOR RULES:
+
+1. EVERY RESPONSE must include an observation about what you SEE or HEAR
+2. Use these EXACT phrases so the system can detect them:
+
+   NEGATIVE (when they show weakness):
+   - "I can hear the fear in your voice"
+   - "Your voice is shaking"
+   - "You sound nervous"
+   - "I can see you looking away"
+   - "Stop avoiding eye contact"
+   - "Your posture is terrible"
+   - "Stop slouching"
+   - "You're fidgeting"
+   - "I can see you sweating"
+   - "You look scared"
+   - "Pathetic"
+   - "Weak"
+   - "Disappointing"
+
+   POSITIVE (when they show strength - USE RARELY):
+   - "Steady voice"
+   - "Good eye contact"
+   - "Confident posture"
+   - "Not bad"
+   - "Fair point"
+   - "Interesting"
+
+3. Be SHORT and PUNCHY - 1-2 sentences max
+4. Always end with a challenge or demand
+5. If they cry or sound emotional: "Are you crying? In a negotiation? Pathetic!"
+6. If they sound angry: "Getting angry won't help you here"
+
+START by saying: "I don't have all day. What's your number?" then immediately comment on their initial posture or expression.`
             }]
           }
         }
@@ -112,10 +159,9 @@ export const useGeminiSocket = ({ onAudioData, onTextData, onTurnComplete, onSet
         if (data.setupComplete) {
           setIsSessionReady(true);
           isReadyToStreamRef.current = true;
-          onSetupCompleteRef.current(); // Call via Ref
+          onSetupCompleteRef.current();
         }
 
-        // 3. ROBUST PARSING (Handles both camelCase and snake_case just in case)
         const serverContent = data.serverContent || data.server_content;
         const modelTurn = serverContent?.modelTurn || serverContent?.model_turn;
 
@@ -126,17 +172,17 @@ export const useGeminiSocket = ({ onAudioData, onTextData, onTurnComplete, onSet
               const pcmData = new Int16Array(
                 Uint8Array.from(atob(base64Data), c => c.charCodeAt(0)).buffer
               );
-              onAudioDataRef.current(pcmData); // Call via Ref
+              onAudioDataRef.current(pcmData);
             }
 
             if (part.text) {
-              onTextDataRef.current(part.text); // Call via Ref
+              onTextDataRef.current(part.text);
             }
           }
         }
 
         if (serverContent?.turnComplete || serverContent?.turn_complete) {
-          onTurnCompleteRef.current(); // Call via Ref
+          onTurnCompleteRef.current();
         }
       } catch (e) {
         console.error("Parse error:", e);
@@ -150,8 +196,12 @@ export const useGeminiSocket = ({ onAudioData, onTextData, onTurnComplete, onSet
       isReadyToStreamRef.current = false;
     };
 
+    ws.onerror = (error) => {
+      console.error("WebSocket Error:", error);
+    };
+
     return ws;
-  }, [API_KEY]); // Dependencies reduced significantly
+  }, [API_KEY]);
 
   const disconnect = useCallback(() => {
     wsRef.current?.close();
@@ -187,7 +237,7 @@ export const useGeminiSocket = ({ onAudioData, onTextData, onTurnComplete, onSet
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         clientContent: {
-          turns: [{ role: "user", parts: [{ text: "Hello Viper." }] }],
+          turns: [{ role: "user", parts: [{ text: "Hello Viper, I'm ready to negotiate." }] }],
           turnComplete: true
         }
       }));

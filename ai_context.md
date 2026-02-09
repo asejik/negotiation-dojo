@@ -56,7 +56,17 @@ negotiation-dojo/
 
 [x] Fix Stale Closure bugs in WebSocket
 
-[ ] Phase 9: Submission
+[x] Phase 9: Logic & Balance Fixes (COMPLETED)
+
+[x] Fix Infinite Win Bug: Moved patience reduction from onAudioData (50x/sec) to onTurnComplete (1x/turn).
+
+[x] Fix Silence Detection: Implemented startSilenceChecker to correctly penalize 5s+ pauses.
+
+[x] Enhance Viper: Updated system prompt to explicitly verbalize body language observations.
+
+[x] Body Language Fallback: Logic now correlates body language state with Confidence levels since text metadata is unavailable.
+
+[ ] Phase 10: Submission
 
 [ ] Record 3-minute demo video (using "Force Win" button)
 
