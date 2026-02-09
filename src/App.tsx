@@ -1,9 +1,12 @@
 // src/App.tsx
 
+import { useEffect } from 'react';
 import { useGeminiLive } from './useGeminiLive';
+import { useGeminiAnalysis } from './useGeminiAnalysis';
 import {
   Mic, MicOff, Shield, Activity, Zap, RotateCcw, Trophy, Skull,
-  Eye, User, Smile, Video, Download, X, Clock, Target, TrendingDown
+  Eye, User, Smile, Video, Download, Target, TrendingDown,
+  Brain, Lightbulb, TrendingUp, Award, Loader2
 } from 'lucide-react';
 
 export default function App() {
@@ -16,12 +19,18 @@ export default function App() {
     bodyLanguage,
     recording,
     downloadRecording,
-    clearRecording,
     startNegotiation,
     stopNegotiation,
     resetGame,
     videoRef
   } = useGeminiLive();
+
+  const {
+    isAnalyzing,
+    analysis,
+    analyzeSession,
+    clearAnalysis
+  } = useGeminiAnalysis();
 
   const {
     userConfidence,
@@ -31,6 +40,14 @@ export default function App() {
     lastUserAction,
     lastViperReaction
   } = healthBars;
+
+  // 🧠 Trigger Gemini 3 analysis when game ends
+  useEffect(() => {
+    if ((gameStatus === 'won' || gameStatus === 'lost') && recording.sessionStats && !analysis && !isAnalyzing) {
+      console.log("🧠 Triggering Gemini 3 post-session analysis...");
+      analyzeSession(recording.sessionStats, gameStatus);
+    }
+  }, [gameStatus, recording.sessionStats, analysis, isAnalyzing, analyzeSession]);
 
   // Format duration as MM:SS
   const formatDuration = (seconds: number) => {
@@ -70,19 +87,27 @@ export default function App() {
 
   const handlePlayAgain = () => {
     resetGame();
+    clearAnalysis();
     startNegotiation();
+  };
+
+  // Score color helper
+  const getScoreColor = (score: number) => {
+    if (score >= 80) return 'text-emerald-400';
+    if (score >= 60) return 'text-yellow-400';
+    return 'text-red-400';
   };
 
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-900 text-white overflow-hidden relative">
 
       {/* ==========================================
-          🏆 WIN OVERLAY
+          🏆 WIN OVERLAY WITH GEMINI 3 ANALYSIS
           ========================================== */}
       {gameStatus === 'won' && (
         <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center overflow-y-auto py-8">
-          <div className="text-center space-y-6 max-w-2xl mx-4">
-            <Trophy size={100} className="mx-auto text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]" />
+          <div className="text-center space-y-6 max-w-4xl mx-4">
+            <Trophy size={80} className="mx-auto text-yellow-400 drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]" />
             <h2 className="text-5xl font-black text-emerald-400 tracking-wider">
               VICTORY!
             </h2>
@@ -90,100 +115,158 @@ export default function App() {
               Viper's patience crumbled. You negotiated like a champion!
             </p>
 
-            {/* 📊 Session Stats */}
-            {recording.sessionStats && (
-              <div className="bg-slate-800/50 rounded-lg p-6 text-left space-y-4 border border-emerald-500/30">
-                <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2">
-                  <Target size={20} /> Session Summary
-                </h3>
+            {/* 🧠 Gemini 3 Analysis Section */}
+            <div className="bg-slate-800/50 rounded-lg p-6 text-left border border-emerald-500/30">
+              <h3 className="text-lg font-bold text-emerald-400 flex items-center gap-2 mb-4">
+                <Brain size={20} /> AI Coach Analysis
+                <span className="text-xs text-slate-500 font-normal">(Powered by Gemini 3)</span>
+              </h3>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Clock size={16} className="text-slate-400" />
-                    <span className="text-slate-400">Duration:</span>
-                    <span className="text-white font-mono">{formatDuration(recording.sessionStats.totalDuration)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Zap size={16} className="text-slate-400" />
-                    <span className="text-slate-400">Rounds:</span>
-                    <span className="text-white font-mono">{recording.sessionStats.totalRounds}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Shield size={16} className="text-blue-400" />
-                    <span className="text-slate-400">Final Confidence:</span>
-                    <span className="text-emerald-400 font-mono">{recording.sessionStats.endingConfidence}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Activity size={16} className="text-red-400" />
-                    <span className="text-slate-400">Viper's Patience:</span>
-                    <span className="text-red-400 font-mono">{recording.sessionStats.endingPatience}%</span>
-                  </div>
+              {isAnalyzing && (
+                <div className="flex items-center justify-center gap-3 py-8">
+                  <Loader2 size={24} className="animate-spin text-emerald-400" />
+                  <span className="text-slate-400">Gemini 3 is analyzing your performance...</span>
                 </div>
+              )}
 
-                {/* Key Moments */}
-                {recording.sessionStats.keyMoments.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">
-                      <TrendingDown size={16} /> Key Moments
-                    </h4>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {recording.sessionStats.keyMoments.slice(-5).map((moment, i) => (
-                        <div key={i} className="text-xs flex items-center gap-2">
-                          <span className="text-slate-500 font-mono w-12">
-                            {formatDuration(Math.floor(moment.timestamp / 1000))}
-                          </span>
-                          <span className={`
-                            ${moment.type === 'confidence_drop' ? 'text-red-400' : ''}
-                            ${moment.type === 'patience_drop' ? 'text-emerald-400' : ''}
-                            ${moment.type === 'body_language' ? 'text-yellow-400' : ''}
-                            ${moment.type === 'confidence_boost' ? 'text-blue-400' : ''}
-                            ${moment.type === 'round_start' ? 'text-slate-400' : ''}
-                          `}>
-                            {moment.description}
-                          </span>
-                        </div>
-                      ))}
+              {analysis && (
+                <div className="space-y-4">
+                  {/* Scores */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.overall)}`}>
+                        {analysis.score.overall}
+                      </div>
+                      <div className="text-xs text-slate-400">Overall</div>
+                    </div>
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.confidence)}`}>
+                        {analysis.score.confidence}
+                      </div>
+                      <div className="text-xs text-slate-400">Confidence</div>
+                    </div>
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.strategy)}`}>
+                        {analysis.score.strategy}
+                      </div>
+                      <div className="text-xs text-slate-400">Strategy</div>
+                    </div>
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.composure)}`}>
+                        {analysis.score.composure}
+                      </div>
+                      <div className="text-xs text-slate-400">Composure</div>
                     </div>
                   </div>
-                )}
+
+                  {/* Overall Assessment */}
+                  <div className="p-3 bg-slate-700/30 rounded">
+                    <p className="text-slate-300 italic">"{analysis.overallAssessment}"</p>
+                  </div>
+
+                  {/* Strengths & Improvements */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-2 mb-2">
+                        <TrendingUp size={14} /> Strengths
+                      </h4>
+                      <ul className="space-y-1">
+                        {analysis.strengthsIdentified.map((s, i) => (
+                          <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                            <span className="text-emerald-400">✓</span> {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-yellow-400 flex items-center gap-2 mb-2">
+                        <Lightbulb size={14} /> Areas to Improve
+                      </h4>
+                      <ul className="space-y-1">
+                        {analysis.areasForImprovement.map((a, i) => (
+                          <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                            <span className="text-yellow-400">→</span> {a}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Coach Message */}
+                  <div className="p-3 bg-emerald-500/10 rounded border border-emerald-500/30">
+                    <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-2 mb-1">
+                      <Award size={14} /> Coach's Message
+                    </h4>
+                    <p className="text-sm text-slate-300">{analysis.coachingScript}</p>
+                  </div>
+
+                  {/* Next Recommendation */}
+                  <div className="text-xs text-slate-500">
+                    <strong>Next:</strong> {analysis.nextScenarioRecommendation}
+                  </div>
+                </div>
+              )}
+
+              {!isAnalyzing && !analysis && (
+                <p className="text-slate-500 text-sm">Analysis unavailable</p>
+              )}
+            </div>
+
+            {/* Session Stats */}
+            {recording.sessionStats && (
+              <div className="bg-slate-800/30 rounded-lg p-4 text-left border border-slate-700">
+                <h4 className="text-sm font-bold text-slate-400 flex items-center gap-2 mb-2">
+                  <Target size={14} /> Session Stats
+                </h4>
+                <div className="grid grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-500">Duration:</span>
+                    <span className="ml-1 text-white font-mono">{formatDuration(recording.sessionStats.totalDuration)}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Rounds:</span>
+                    <span className="ml-1 text-white font-mono">{recording.sessionStats.totalRounds}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Final Confidence:</span>
+                    <span className="ml-1 text-emerald-400 font-mono">{recording.sessionStats.endingConfidence}%</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Viper's Patience:</span>
+                    <span className="ml-1 text-red-400 font-mono">{recording.sessionStats.endingPatience}%</span>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* 🎥 Recording Controls */}
-            {recording.recordingUrl && (
-              <div className="flex items-center justify-center gap-4">
+            {/* Action Buttons */}
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              {recording.recordingUrl && (
                 <button
                   onClick={downloadRecording}
                   className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-500 transition-all"
                 >
                   <Download size={18} /> Download Recording
                 </button>
-                <button
-                  onClick={clearRecording}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-slate-300 rounded-full hover:bg-slate-600 transition-all"
-                >
-                  <X size={18} /> Dismiss
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={handlePlayAgain}
-              className="flex items-center gap-2 px-8 py-3 bg-emerald-500 text-slate-900 rounded-full font-bold hover:bg-emerald-400 transition-all mx-auto"
-            >
-              <RotateCcw size={20} /> PLAY AGAIN
-            </button>
+              )}
+              <button
+                onClick={handlePlayAgain}
+                className="flex items-center gap-2 px-8 py-3 bg-emerald-500 text-slate-900 rounded-full font-bold hover:bg-emerald-400 transition-all"
+              >
+                <RotateCcw size={20} /> PLAY AGAIN
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* ==========================================
-          💀 LOSE OVERLAY
+          💀 LOSE OVERLAY WITH GEMINI 3 ANALYSIS
           ========================================== */}
       {gameStatus === 'lost' && (
         <div className="absolute inset-0 z-50 bg-black/90 flex items-center justify-center overflow-y-auto py-8">
-          <div className="text-center space-y-6 max-w-2xl mx-4">
-            <Skull size={100} className="mx-auto text-red-500 drop-shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse" />
+          <div className="text-center space-y-6 max-w-4xl mx-4">
+            <Skull size={80} className="mx-auto text-red-500 drop-shadow-[0_0_30px_rgba(239,68,68,0.5)] animate-pulse" />
             <h2 className="text-5xl font-black text-red-500 tracking-wider">
               DEFEATED
             </h2>
@@ -191,86 +274,120 @@ export default function App() {
               Your confidence shattered. Viper wins this round.
             </p>
 
-            {/* 📊 Session Stats */}
-            {recording.sessionStats && (
-              <div className="bg-slate-800/50 rounded-lg p-6 text-left space-y-4 border border-red-500/30">
-                <h3 className="text-lg font-bold text-red-400 flex items-center gap-2">
-                  <Target size={20} /> Session Summary
-                </h3>
+            {/* 🧠 Gemini 3 Analysis Section */}
+            <div className="bg-slate-800/50 rounded-lg p-6 text-left border border-red-500/30">
+              <h3 className="text-lg font-bold text-red-400 flex items-center gap-2 mb-4">
+                <Brain size={20} /> AI Coach Analysis
+                <span className="text-xs text-slate-500 font-normal">(Powered by Gemini 3)</span>
+              </h3>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Clock size={16} className="text-slate-400" />
-                    <span className="text-slate-400">Duration:</span>
-                    <span className="text-white font-mono">{formatDuration(recording.sessionStats.totalDuration)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Zap size={16} className="text-slate-400" />
-                    <span className="text-slate-400">Rounds:</span>
-                    <span className="text-white font-mono">{recording.sessionStats.totalRounds}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Shield size={16} className="text-blue-400" />
-                    <span className="text-slate-400">Final Confidence:</span>
-                    <span className="text-red-400 font-mono">{recording.sessionStats.endingConfidence}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Activity size={16} className="text-red-400" />
-                    <span className="text-slate-400">Viper's Patience:</span>
-                    <span className="text-slate-400 font-mono">{recording.sessionStats.endingPatience}%</span>
-                  </div>
+              {isAnalyzing && (
+                <div className="flex items-center justify-center gap-3 py-8">
+                  <Loader2 size={24} className="animate-spin text-red-400" />
+                  <span className="text-slate-400">Gemini 3 is analyzing what went wrong...</span>
                 </div>
+              )}
 
-                {/* Key Moments - What Went Wrong */}
-                {recording.sessionStats.keyMoments.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2">
-                      <TrendingDown size={16} /> What Went Wrong
-                    </h4>
-                    <div className="space-y-2 max-h-32 overflow-y-auto">
-                      {recording.sessionStats.keyMoments
-                        .filter(m => m.type === 'confidence_drop' || m.type === 'body_language')
-                        .slice(-5)
-                        .map((moment, i) => (
-                        <div key={i} className="text-xs flex items-center gap-2">
-                          <span className="text-slate-500 font-mono w-12">
-                            {formatDuration(Math.floor(moment.timestamp / 1000))}
-                          </span>
-                          <span className="text-red-400">
-                            {moment.description}
-                          </span>
-                        </div>
-                      ))}
+              {analysis && (
+                <div className="space-y-4">
+                  {/* Scores */}
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.overall)}`}>
+                        {analysis.score.overall}
+                      </div>
+                      <div className="text-xs text-slate-400">Overall</div>
+                    </div>
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.confidence)}`}>
+                        {analysis.score.confidence}
+                      </div>
+                      <div className="text-xs text-slate-400">Confidence</div>
+                    </div>
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.strategy)}`}>
+                        {analysis.score.strategy}
+                      </div>
+                      <div className="text-xs text-slate-400">Strategy</div>
+                    </div>
+                    <div className="text-center p-3 bg-slate-700/50 rounded">
+                      <div className={`text-2xl font-bold ${getScoreColor(analysis.score.composure)}`}>
+                        {analysis.score.composure}
+                      </div>
+                      <div className="text-xs text-slate-400">Composure</div>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
 
-            {/* 🎥 Recording Controls */}
-            {recording.recordingUrl && (
-              <div className="flex items-center justify-center gap-4">
+                  {/* Overall Assessment */}
+                  <div className="p-3 bg-slate-700/30 rounded">
+                    <p className="text-slate-300 italic">"{analysis.overallAssessment}"</p>
+                  </div>
+
+                  {/* What Went Wrong + Tips */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-bold text-red-400 flex items-center gap-2 mb-2">
+                        <TrendingDown size={14} /> What Went Wrong
+                      </h4>
+                      <ul className="space-y-1">
+                        {analysis.areasForImprovement.map((a, i) => (
+                          <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                            <span className="text-red-400">✗</span> {a}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-yellow-400 flex items-center gap-2 mb-2">
+                        <Lightbulb size={14} /> Tips for Next Time
+                      </h4>
+                      <ul className="space-y-1">
+                        {analysis.personalizedTips.map((t, i) => (
+                          <li key={i} className="text-xs text-slate-300 flex items-start gap-2">
+                            <span className="text-yellow-400">💡</span> {t}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Coach Message */}
+                  <div className="p-3 bg-red-500/10 rounded border border-red-500/30">
+                    <h4 className="text-sm font-bold text-red-400 flex items-center gap-2 mb-1">
+                      <Award size={14} /> Coach's Message
+                    </h4>
+                    <p className="text-sm text-slate-300">{analysis.coachingScript}</p>
+                  </div>
+
+                  {/* Next Recommendation */}
+                  <div className="text-xs text-slate-500">
+                    <strong>Recommended Practice:</strong> {analysis.nextScenarioRecommendation}
+                  </div>
+                </div>
+              )}
+
+              {!isAnalyzing && !analysis && (
+                <p className="text-slate-500 text-sm">Analysis unavailable</p>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              {recording.recordingUrl && (
                 <button
                   onClick={downloadRecording}
                   className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-500 transition-all"
                 >
                   <Download size={18} /> Download Recording
                 </button>
-                <button
-                  onClick={clearRecording}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-700 text-slate-300 rounded-full hover:bg-slate-600 transition-all"
-                >
-                  <X size={18} /> Dismiss
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={handlePlayAgain}
-              className="flex items-center gap-2 px-8 py-3 bg-red-600 text-white rounded-full font-bold hover:bg-red-500 transition-all mx-auto"
-            >
-              <RotateCcw size={20} /> TRY AGAIN
-            </button>
+              )}
+              <button
+                onClick={handlePlayAgain}
+                className="flex items-center gap-2 px-8 py-3 bg-red-600 text-white rounded-full font-bold hover:bg-red-500 transition-all"
+              >
+                <RotateCcw size={20} /> TRY AGAIN
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -293,7 +410,6 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* 🎥 Recording Indicator */}
           {recording.isRecording && (
             <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 px-3 py-1 rounded border border-red-500/30">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
@@ -316,9 +432,7 @@ export default function App() {
           ========================================== */}
       <main className="flex-1 flex flex-col md:flex-row">
 
-        {/* ----------------------------------------
-            LEFT: PLAYER SIDE
-            ---------------------------------------- */}
+        {/* LEFT: PLAYER SIDE */}
         <section className="flex-1 relative border-r border-slate-700 bg-black flex items-center justify-center p-4">
 
           {/* Player HUD - Confidence Bar */}
@@ -350,7 +464,7 @@ export default function App() {
             </p>
           </div>
 
-          {/* 📹 Body Language Indicators */}
+          {/* Body Language Indicators */}
           {isConnected && (
             <div className="absolute top-24 left-4 z-10 space-y-2">
               <div className="text-xs uppercase text-slate-500 font-bold mb-1">
@@ -360,7 +474,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Eye Contact */}
               <div className={`flex items-center gap-2 text-xs ${getEyeContactColor()}`}>
                 <Eye size={12} />
                 <span className="capitalize">
@@ -368,7 +481,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Posture */}
               <div className={`flex items-center gap-2 text-xs ${getPostureColor()}`}>
                 <User size={12} />
                 <span className="capitalize">
@@ -376,7 +488,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Expression */}
               <div className={`flex items-center gap-2 text-xs ${getExpressionColor()}`}>
                 <Smile size={12} />
                 <span className="capitalize">
@@ -384,7 +495,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Last Observation */}
               {bodyLanguage.lastObservation && (
                 <p className="text-xs text-slate-600 italic mt-1 max-w-48 truncate">
                   {bodyLanguage.lastObservation}
@@ -415,7 +525,7 @@ export default function App() {
             `}
           />
 
-          {/* 📹 Camera Active Indicator */}
+          {/* Camera Active Indicator */}
           {isConnected && (
             <div className="absolute top-4 right-4 flex items-center gap-2 bg-black/60 px-2 py-1 rounded">
               <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
@@ -441,9 +551,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* ----------------------------------------
-            RIGHT: AI SIDE
-            ---------------------------------------- */}
+        {/* RIGHT: AI SIDE */}
         <section className="flex-1 relative bg-slate-900 flex items-center justify-center p-4">
 
           {/* AI HUD - Patience Bar */}
@@ -484,7 +592,6 @@ export default function App() {
 
           {/* Avatar / Visualizer */}
           <div className="relative">
-            {/* Pulse Ring */}
             <div
               className={`
                 absolute inset-0 rounded-full blur-2xl transition-all duration-100
@@ -496,7 +603,6 @@ export default function App() {
               }}
             />
 
-            {/* Avatar Icon */}
             <div className={`
               w-48 h-48 rounded-full bg-slate-800 border-4 flex items-center justify-center relative z-10 transition-all duration-300
               ${isSpeaking
@@ -512,7 +618,6 @@ export default function App() {
               `} />
             </div>
 
-            {/* Speaking Indicator */}
             {isSpeaking && (
               <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
@@ -534,14 +639,12 @@ export default function App() {
           ========================================== */}
       <footer className="h-24 flex-none bg-slate-950 flex items-center justify-center gap-4 border-t border-slate-800">
 
-        {/* Connection Status */}
         {isConnected && !isSessionReady && (
           <span className="text-yellow-500 text-sm animate-pulse">
             Connecting to Viper...
           </span>
         )}
 
-        {/* Main Action Button */}
         <button
           onClick={isConnected ? stopNegotiation : startNegotiation}
           disabled={gameStatus === 'won' || gameStatus === 'lost'}
@@ -560,7 +663,6 @@ export default function App() {
           }
         </button>
 
-        {/* Session Info */}
         {isSessionReady && (
           <div className="text-slate-500 text-xs">
             Session active • {volumeLevel.toFixed(1)} dB
