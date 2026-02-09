@@ -1,6 +1,5 @@
 // src/components/HealthBars.tsx
-
-import { type HealthBarState } from '../useGeminiLive';
+import { type HealthBarState } from '../hooks/useGameLogic'; // FIX: Update import path
 
 interface HealthBarsProps {
   healthBars: HealthBarState;
@@ -8,7 +7,7 @@ interface HealthBarsProps {
 }
 
 export const HealthBars = ({ healthBars, playerName = "YOU" }: HealthBarsProps) => {
-  const { userConfidence, viperPatience, roundNumber, gameStatus, lastUserAction, lastViperReaction } = healthBars;
+  const { userConfidence, viperPatience, lastViperReaction } = healthBars;
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4">
@@ -34,45 +33,39 @@ export const HealthBars = ({ healthBars, playerName = "YOU" }: HealthBarsProps) 
                 width: `${userConfidence}%`,
                 background: userConfidence > 50
                   ? 'linear-gradient(180deg, #10b981 0%, #059669 50%, #047857 100%)'
-                  : userConfidence > 25
-                  ? 'linear-gradient(180deg, #f59e0b 0%, #d97706 50%, #b45309 100%)'
                   : 'linear-gradient(180deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%)'
               }}
             />
-            {/* Shine effect */}
+            {/* Glossy effect */}
             <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent h-1/2" />
           </div>
-
-          {/* Last action */}
-          <p className="text-xs text-gray-500 mt-1 truncate h-4">
-            {lastUserAction}
-          </p>
         </div>
 
-        {/* VS / Round Counter */}
-        <div className="flex flex-col items-center px-4">
-          <span className="text-yellow-500 font-bold text-lg">VS</span>
-          <span className="text-gray-500 text-xs">Round {roundNumber}</span>
+        {/* VS Badge */}
+        <div className="flex-none px-2">
+          <span className="text-red-600 font-black text-2xl italic tracking-widest drop-shadow-[0_0_10px_rgba(220,38,38,0.8)]">
+            VS
+          </span>
         </div>
 
         {/* Viper Side */}
-        <div className="flex-1">
+        <div className="flex-1 text-right">
           <div className="flex justify-between items-center mb-1">
             <span className="text-red-400 font-mono text-xs">
               {viperPatience}%
             </span>
             <span className="text-red-400 font-bold text-sm tracking-wider">
-              VIPER 🐍
+              VIPER
             </span>
           </div>
 
-          {/* Viper Health Bar (reversed direction) */}
+          {/* Viper Health Bar */}
           <div className="h-6 bg-gray-800 rounded-sm border-2 border-red-900 overflow-hidden relative">
             <div
-              className="h-full transition-all duration-500 ease-out ml-auto"
+              className="h-full transition-all duration-500 ease-out float-right"
               style={{
                 width: `${viperPatience}%`,
-                background: viperPatience > 50
+                background: viperPatience < 30
                   ? 'linear-gradient(180deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%)'
                   : viperPatience > 25
                   ? 'linear-gradient(180deg, #f59e0b 0%, #d97706 50%, #b45309 100%)'
@@ -88,29 +81,6 @@ export const HealthBars = ({ healthBars, playerName = "YOU" }: HealthBarsProps) 
           </p>
         </div>
       </div>
-
-      {/* Game Status Overlay */}
-      {gameStatus === 'won' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
-          <div className="text-center">
-            <h2 className="text-6xl font-bold text-emerald-400 mb-4 animate-pulse">
-              🏆 YOU WIN!
-            </h2>
-            <p className="text-xl text-gray-300">Viper's patience broke. You got the deal!</p>
-          </div>
-        </div>
-      )}
-
-      {gameStatus === 'lost' && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-50">
-          <div className="text-center">
-            <h2 className="text-6xl font-bold text-red-500 mb-4 animate-pulse">
-              💀 DEFEATED
-            </h2>
-            <p className="text-xl text-gray-300">Your confidence crumbled. Better luck next time.</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
