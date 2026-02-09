@@ -6,7 +6,17 @@ negotiation-dojo
 │   ├── assets
 │   │   └── react.svg
 │   ├── components
-│   │   └── HealthBars.tsx
+│   │   ├── Controls.tsx
+│   │   ├── Header.tsx
+│   │   ├── HealthBars.tsx
+│   │   ├── PlayerView.tsx
+│   │   ├── ViperView.tsx
+│   │   └── WinLoseOverlay.tsx
+│   ├── hooks
+│   │   ├── useAudioStream.ts
+│   │   ├── useGameLogic.ts
+│   │   ├── useGeminiSocket.ts
+│   │   └── useRecording.ts
 │   ├── App.tsx
 │   ├── declarations.d.ts
 │   ├── index.css
