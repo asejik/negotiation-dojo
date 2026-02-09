@@ -1,7 +1,7 @@
 negotiation-dojo
 ├── public
 │   ├── audio-processor.worklet.js
-│   └── vite.svg
+│   └── favicon.svg
 ├── src
 │   ├── assets
 │   │   └── react.svg
@@ -35,4 +35,5 @@ negotiation-dojo
 ├── tsconfig.app.json
 ├── tsconfig.json
 ├── tsconfig.node.json
+├── vercel.json
 └── vite.config.ts
