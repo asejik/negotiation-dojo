@@ -19,6 +19,9 @@ export interface HealthBarState {
 }
 
 export const useGameLogic = () => {
+  // ==========================
+  // STATE DEFINITIONS
+  // ==========================
   const [healthBars, setHealthBars] = useState<HealthBarState>({
     userConfidence: 100,
     viperPatience: 100,
@@ -36,15 +39,31 @@ export const useGameLogic = () => {
     isAnalyzing: false
   });
 
+  // ==========================
+  // REFS & TIMERS
+  // ==========================
   const lastSpeakTimeRef = useRef<number>(Date.now());
   const silenceIntervalRef = useRef<number | null>(null);
+  const lastBoostTimeRef = useRef<number>(0); // Throttle for confidence boosting
 
+  // Refs for accessing latest state in callbacks/intervals
+  const healthBarsRef = useRef(healthBars);
+  healthBarsRef.current = healthBars;
+
+  // ==========================
+  // CORE MODIFIERS
+  // ==========================
   const modifyUserConfidence = useCallback((amount: number, reason: string) => {
     setHealthBars(prev => {
       const newConfidence = Math.max(0, Math.min(100, prev.userConfidence + amount));
       const newStatus = newConfidence <= 0 ? 'lost' : prev.gameStatus;
 
-      console.log(`💚 Confidence ${amount >= 0 ? '+' : ''}${amount}: ${reason} (${newConfidence}%)`);
+      // Update Body Language based on Confidence Level (Simulation since Audio-Only model)
+      if (newConfidence < 40) {
+        setBodyLanguage(prevBL => ({ ...prevBL, posture: 'slouching', expression: 'nervous' }));
+      } else if (newConfidence > 70) {
+        setBodyLanguage(prevBL => ({ ...prevBL, posture: 'confident', expression: 'calm' }));
+      }
 
       return {
         ...prev,
@@ -59,9 +78,6 @@ export const useGameLogic = () => {
     setHealthBars(prev => {
       const newPatience = Math.max(0, Math.min(100, prev.viperPatience + amount));
       const newStatus = newPatience <= 0 ? 'won' : prev.gameStatus;
-
-      console.log(`❤️ Patience ${amount >= 0 ? '+' : ''}${amount}: ${reason} (${newPatience}%)`);
-
       return {
         ...prev,
         viperPatience: newPatience,
@@ -72,44 +88,84 @@ export const useGameLogic = () => {
   }, []);
 
   const incrementRound = useCallback(() => {
-    setHealthBars(prev => ({
-      ...prev,
-      roundNumber: prev.roundNumber + 1
-    }));
+    setHealthBars(prev => {
+      // Small patience drop every round naturally (-2)
+      const newPatience = Math.max(0, prev.viperPatience - 2);
+      const newStatus = newPatience <= 0 ? 'won' : prev.gameStatus;
+      return {
+        ...prev,
+        roundNumber: prev.roundNumber + 1,
+        viperPatience: newPatience,
+        lastViperReaction: "Viper is evaluating...",
+        gameStatus: newStatus
+      };
+    });
   }, []);
 
-  // Silence penalty checker
+  // ==========================
+  // GAME LOOP HELPERS
+  // ==========================
+
+  // REWARD MECHANIC: Speaking confidently restores confidence
+  const registerSpeaking = useCallback((volume: number) => {
+    if (volume > 2) {
+      lastSpeakTimeRef.current = Date.now();
+
+      const now = Date.now();
+      // Throttle: Only boost once every 2 seconds max
+      if (now - lastBoostTimeRef.current > 2000) {
+        // 30% Chance to gain +2 Confidence just for speaking up
+        if (Math.random() > 0.7) {
+           setHealthBars(prev => {
+             const newConf = Math.min(100, prev.userConfidence + 2);
+             return {
+               ...prev,
+               userConfidence: newConf,
+               lastUserAction: "Speaking with conviction (+2)"
+             };
+           });
+           // Visual feedback
+           setBodyLanguage(prev => ({ ...prev, posture: 'confident' }));
+        }
+        lastBoostTimeRef.current = now;
+      }
+    }
+  }, []);
+
   const startSilenceChecker = useCallback(() => {
     if (silenceIntervalRef.current) clearInterval(silenceIntervalRef.current);
 
     silenceIntervalRef.current = window.setInterval(() => {
-      const silenceDuration = Date.now() - lastSpeakTimeRef.current;
-      if (silenceDuration > 5000) {
-        modifyUserConfidence(-3, "Awkward silence - speak up!");
-        setBodyLanguage(prev => ({
-          ...prev,
-          expression: 'nervous',
-          lastObservation: 'Extended silence detected'
-        }));
-        lastSpeakTimeRef.current = Date.now();
+      const timeSinceSpeak = Date.now() - lastSpeakTimeRef.current;
+
+      // LENIENT CHECK: Only penalize after 8 seconds (was 5)
+      if (timeSinceSpeak > 8000) {
+        setHealthBars(prev => {
+           // LENIENT PENALTY: Only -2 (was -3)
+           const newConf = Math.max(0, prev.userConfidence - 2);
+           const newStatus = newConf <= 0 ? 'lost' : prev.gameStatus;
+
+           setBodyLanguage(prevBL => ({
+             ...prevBL,
+             eyeContact: 'weak',
+             lastObservation: 'awkward silence detected'
+           }));
+
+           return {
+             ...prev,
+             userConfidence: newConf,
+             lastUserAction: "Hesitation detected (-2)",
+             gameStatus: newStatus
+           };
+        });
       }
-    }, 3000);
-  }, [modifyUserConfidence]);
+    }, 1000);
+  }, []);
 
   const stopSilenceChecker = useCallback(() => {
     if (silenceIntervalRef.current) {
       clearInterval(silenceIntervalRef.current);
       silenceIntervalRef.current = null;
-    }
-  }, []);
-
-  // ✅ FIXED: Only tracks that user is speaking, NO confidence boost
-  // Let Viper be the judge of whether they sound confident
-  const registerSpeaking = useCallback((volume: number) => {
-    if (volume > 2) {
-      lastSpeakTimeRef.current = Date.now();
-      // ❌ REMOVED: No more fake "Speaking confidently" boost
-      // Viper will tell us if the user sounds confident or weak
     }
   }, []);
 
@@ -143,12 +199,14 @@ export const useGameLogic = () => {
     }));
   }, []);
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => stopSilenceChecker();
   }, [stopSilenceChecker]);
 
   return {
     healthBars,
+    healthBarsRef,
     bodyLanguage,
     setBodyLanguage,
     modifyUserConfidence,
@@ -156,6 +214,7 @@ export const useGameLogic = () => {
     incrementRound,
     resetGameLogic,
     forceWin,
+    setHealthBars,
     registerSpeaking,
     startSilenceChecker,
     stopSilenceChecker

@@ -76,3 +76,17 @@ negotiation-dojo/
 
 6. Known Issues
 Body Language Text: The gemini-2.5-flash-native-audio-latest model is Audio-Only. Text-based body language detection (via parseViperResponse) is currently limited. Logic exists but relies on audio keywords.
+
+## 7. Game Mechanics Reference (Final Balanced Values)
+| Event | Health Effect |
+|-------|---------------|
+| Silence > 8 seconds | Confidence -2 (Hesitation penalty) |
+| Speaking confidently | Confidence +2 (30% chance per burst) |
+| Viper says "pathetic", "weak", etc. | Confidence -10 |
+| Viper says "interesting", "fair point" | Patience -8 |
+| Viper says "fine", "very well" | Patience -12 |
+| Weak eye contact detected | Confidence -5 |
+| Strong eye contact detected | Patience -5 |
+| Poor posture detected | Confidence -4 |
+| Confident posture detected | Patience -4 |
+| Default Turn End | Patience -2 |
